@@ -81,10 +81,10 @@ function parseArgs(args: string[]): ScanOptions {
         }
       }
     } else if (arg === "--help" || arg === "-h") {
-      console.log(`devrage scan — scan sessions for profanity
+      console.log(`fuckupinator scan — scan sessions for profanity
 
 Options:
-  --agent, -a <name>   Scan only a specific agent (claude, codex, opencode, amp, cline, pi, zed)
+  --agent, -a <name>   Scan only a specific adapter (claude, codex, opencode, amp, cline, hermes, pi, zed)
   --since, -s <date>   Only scan messages after this date (ISO 8601)
   --help, -h           Show this help`);
       process.exit(0);
@@ -112,18 +112,19 @@ export async function scan(args: string[]): Promise<void> {
   const perAgent: Record<string, { messages: number; swears: number }> = {};
 
   for (const adapter of adapters) {
-    let agentMessages = 0;
-    let agentSwears = 0;
     spinner.update();
 
     for await (const message of adapter.messages({ since: options.since })) {
+      const agentName = message.agent ?? adapter.name;
+      const agentStats = (perAgent[agentName] ??= { messages: 0, swears: 0 });
+
       totalMessages++;
-      agentMessages++;
+      agentStats.messages++;
 
       const result = detect(message.text);
       if (result.count > 0) {
         totalSwears += result.count;
-        agentSwears += result.count;
+        agentStats.swears += result.count;
 
         for (const match of result.matches) {
           groupTally[match.group] = (groupTally[match.group] ?? 0) + 1;
@@ -133,30 +134,27 @@ export async function scan(args: string[]): Promise<void> {
         }
       }
     }
-
-    if (agentMessages > 0) {
-      perAgent[adapter.name] = { messages: agentMessages, swears: agentSwears };
-    }
   }
 
   spinner.stop();
 
   // Report
   console.log("");
-  console.log(`  ${c.bold}${c.red}devrage${c.reset} ${c.dim}report${c.reset}`);
+  console.log(`  ${c.bold}${c.red}fuckupinator${c.reset} ${c.dim}report${c.reset}`);
   console.log(`  ${c.dim}${"─".repeat(30)}${c.reset}`);
   console.log("");
   console.log(`  ${c.dim}messages scanned${c.reset}  ${c.bold}${totalMessages}${c.reset}`);
   console.log(`  ${c.dim}total swears${c.reset}      ${c.bold}${c.red}${totalSwears}${c.reset}`);
 
-  const activeAgents = Object.entries(perAgent);
-  if (activeAgents.length > 1) {
+  const activeAgents = Object.entries(perAgent).sort(([a], [b]) => a.localeCompare(b));
+  if (activeAgents.length > 0) {
+    const nameWidth = Math.max(10, ...activeAgents.map(([name]) => name.length));
     console.log("");
     console.log(`  ${c.bold}by agent${c.reset}`);
     for (const [name, stats] of activeAgents) {
       const rate = ((stats.swears / stats.messages) * 100).toFixed(1);
       console.log(
-        `    ${c.cyan}${name.padEnd(10)}${c.reset} ${c.bold}${String(stats.swears).padStart(4)}${c.reset} ${c.dim}in ${stats.messages} messages (${rate}%)${c.reset}`,
+        `    ${c.cyan}${name.padEnd(nameWidth)}${c.reset} ${c.bold}${String(stats.swears).padStart(4)}${c.reset} ${c.dim}in ${stats.messages} messages (${rate}%)${c.reset}`,
       );
     }
   }
@@ -186,5 +184,4 @@ export async function scan(args: string[]): Promise<void> {
     console.log("");
   }
 }
-
 

@@ -5,10 +5,10 @@ const COMMANDS: Record<string, (args: string[]) => Promise<void>> = {
 };
 
 function usage(): void {
-  console.log(`devrage — count how many times you swear at your coding agents
+  console.log(`fuckupinator — count how many times you swear at your coding agents
 
 Usage:
-  devrage <command> [options]
+  fuckupinator <command> [options]
 
 Commands:
   scan          Scan sessions for profanity
@@ -18,9 +18,10 @@ Options:
   --version     Show version
 
 Examples:
-  devrage scan
-  devrage scan --agent claude
-  devrage scan --since 2025-01-01`);
+  fuckupinator scan
+  fuckupinator scan --agent claude
+  fuckupinator scan --agent hermes
+  fuckupinator scan --since 2025-01-01`);
 }
 
 async function main(): Promise<void> {
@@ -33,7 +34,7 @@ async function main(): Promise<void> {
   }
 
   if (command === "--version") {
-    console.log("0.0.4");
+    console.log("0.1.0");
     process.exit(0);
   }
 

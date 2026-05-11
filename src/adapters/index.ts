@@ -2,6 +2,7 @@ import { ampAdapter } from "./amp";
 import { claudeAdapter } from "./claude";
 import { clineAdapter } from "./cline";
 import { codexAdapter } from "./codex";
+import { hermesAdapter } from "./hermes";
 import { opencodeAdapter } from "./opencode";
 import { piAdapter } from "./pi";
 import { zedAdapter } from "./zed";
@@ -11,6 +12,7 @@ export interface Message {
   timestamp?: string;
   session?: string;
   project?: string;
+  agent?: string;
 }
 
 export interface Adapter {
@@ -29,6 +31,7 @@ const ADAPTERS: Record<string, () => Adapter> = {
   opencode: opencodeAdapter,
   amp: ampAdapter,
   cline: clineAdapter,
+  hermes: hermesAdapter,
   pi: piAdapter,
   zed: zedAdapter,
 };

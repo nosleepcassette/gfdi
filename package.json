@@ -1,10 +1,10 @@
 {
-  "name": "devrage",
-  "version": "0.0.4",
-  "description": "Count how many times you swear at your coding agents",
+  "name": "fuckupinator",
+  "version": "0.1.0",
+  "description": "Count how many times you swear at your coding agents, including Hermes agents",
   "type": "module",
   "bin": {
-    "devrage": "./dist/cli.js"
+    "fuckupinator": "./dist/cli.js"
   },
   "exports": {
     ".": {

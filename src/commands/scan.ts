@@ -1,71 +1,19 @@
 import { allAdapters, createAdapter } from "../adapters/index";
 import { detect } from "../detector/index";
+import { renderScanResult } from "../tui/render";
+import { createSpinner } from "../tui/spinner";
+import type { AgentStats, RenderOptions, ScanResult, WordStats } from "../tui/types";
 
-// ANSI color helpers — no dependencies needed
-const c = {
-  reset: "\x1b[0m",
-  bold: "\x1b[1m",
-  dim: "\x1b[2m",
-  red: "\x1b[31m",
-  green: "\x1b[32m",
-  yellow: "\x1b[33m",
-  blue: "\x1b[34m",
-  magenta: "\x1b[35m",
-  cyan: "\x1b[36m",
-  white: "\x1b[37m",
-  gray: "\x1b[90m",
-};
-
-const SPINNER_MESSAGES = [
-  "Tallying the damage",
-  "Reviewing your outbursts",
-  "Judging your vocabulary",
-  "Computing your shame",
-  "Cataloging the profanity",
-  "Measuring your frustration",
-  "Assessing the verbal carnage",
-  "Quantifying your displeasure",
-  "Auditing your language",
-  "Tabulating regrets",
-];
-
-function createSpinner() {
-  let messageIdx = 0;
-  let dotCount = 0;
-  let timer: ReturnType<typeof setInterval> | null = null;
-
-  return {
-    start() {
-      messageIdx = Math.floor(Math.random() * SPINNER_MESSAGES.length);
-      timer = setInterval(() => {
-        dotCount = (dotCount + 1) % 4;
-        const msg = SPINNER_MESSAGES[messageIdx % SPINNER_MESSAGES.length];
-        const dots = ".".repeat(dotCount || 1);
-        process.stdout.write(
-          `\r  ${c.dim}${msg}${dots}${c.reset}   `,
-        );
-      }, 300);
-    },
-    update() {
-      messageIdx++;
-    },
-    stop() {
-      if (timer) {
-        clearInterval(timer);
-        timer = null;
-      }
-      process.stdout.write("\r" + " ".repeat(60) + "\r");
-    },
-  };
-}
-
-interface ScanOptions {
+interface ScanOptions extends RenderOptions {
   agent?: string;
   since?: Date;
 }
 
 function parseArgs(args: string[]): ScanOptions {
-  const options: ScanOptions = {};
+  const options: ScanOptions = {
+    logo: true,
+    top: 10,
+  };
 
   for (let i = 0; i < args.length; i++) {
     const arg = args[i];
@@ -80,12 +28,38 @@ function parseArgs(args: string[]): ScanOptions {
           process.exit(1);
         }
       }
+    } else if (arg === "--json") {
+      options.json = true;
+      options.plain = true;
+    } else if (arg === "--plain") {
+      options.plain = true;
+    } else if (arg === "--tui") {
+      options.tui = true;
+      options.plain = false;
+    } else if (arg === "--no-logo") {
+      options.logo = false;
+    } else if (arg === "--logo") {
+      options.logoPath = args[++i];
+    } else if (arg === "--top") {
+      const val = Number(args[++i]);
+      if (!Number.isInteger(val) || val < 1) {
+        console.error(`invalid --top value: ${args[i]}`);
+        process.exit(1);
+      }
+      options.top = val;
     } else if (arg === "--help" || arg === "-h") {
-      console.log(`fuckupinator scan — scan sessions for profanity
+      console.log(`fuckupinator scan - scan sessions for profanity
 
 Options:
-  --agent, -a <name>   Scan only a specific adapter (claude, codex, opencode, amp, cline, hermes, pi, zed)
+  --agent, -a <name>   Scan one adapter or logical agent
+                       (claude, codex, opencode, amp, cline, hermes, hermes:wizard, pi, zed)
   --since, -s <date>   Only scan messages after this date (ISO 8601)
+  --top <n>            Number of top word groups to show (default: 10)
+  --logo <path>        Read ASCII logo from a file
+  --no-logo            Hide the logo
+  --plain              Render plain text
+  --json               Render machine-readable JSON
+  --tui                Force styled dashboard output even outside a TTY
   --help, -h           Show this help`);
       process.exit(0);
     }
@@ -96,30 +70,45 @@ Options:
 
 export async function scan(args: string[]): Promise<void> {
   const options = parseArgs(args);
+  const result = await collectScan(options);
+  renderScanResult(result, options);
+}
 
+async function collectScan(options: ScanOptions): Promise<ScanResult> {
+  const started = Date.now();
   const adapters = options.agent
-    ? [createAdapter(options.agent)]
+    ? [createAdapter(adapterNameFor(options.agent))]
     : allAdapters();
+  const spinner = createSpinner({
+    enabled: Boolean(!options.json && !options.plain && !options.tui && process.stdout.isTTY),
+  });
 
-  const spinner = createSpinner();
-  spinner.start();
+  spinner.start("discover");
 
   const groupTally: Record<string, number> = {};
   const variantTally: Record<string, Record<string, number>> = {};
+  const perAgent: Record<string, { messages: number; swears: number }> = {};
+  const sourceTally: Record<string, number> = {};
 
   let totalMessages = 0;
   let totalSwears = 0;
-  const perAgent: Record<string, { messages: number; swears: number }> = {};
 
   for (const adapter of adapters) {
-    spinner.update();
+    spinner.setAdapter(adapter.name);
 
     for await (const message of adapter.messages({ since: options.since })) {
       const agentName = message.agent ?? adapter.name;
+      if (options.agent && options.agent.includes(":") && agentName !== options.agent) {
+        continue;
+      }
+
       const agentStats = (perAgent[agentName] ??= { messages: 0, swears: 0 });
+      const sourceName = `${agentName}:${message.source ?? "sessions"}`;
 
       totalMessages++;
       agentStats.messages++;
+      sourceTally[sourceName] = (sourceTally[sourceName] ?? 0) + 1;
+      spinner.tick(totalMessages);
 
       const result = detect(message.text);
       if (result.count > 0) {
@@ -136,52 +125,60 @@ export async function scan(args: string[]): Promise<void> {
     }
   }
 
+  spinner.setPhase("render");
   spinner.stop();
 
-  // Report
-  console.log("");
-  console.log(`  ${c.bold}${c.red}fuckupinator${c.reset} ${c.dim}report${c.reset}`);
-  console.log(`  ${c.dim}${"─".repeat(30)}${c.reset}`);
-  console.log("");
-  console.log(`  ${c.dim}messages scanned${c.reset}  ${c.bold}${totalMessages}${c.reset}`);
-  console.log(`  ${c.dim}total swears${c.reset}      ${c.bold}${c.red}${totalSwears}${c.reset}`);
+  const elapsedMs = Date.now() - started;
+  const agents = buildAgentStats(perAgent);
+  const words = buildWordStats(groupTally, variantTally);
+  const sources = Object.entries(sourceTally)
+    .map(([name, messages]) => ({ name, messages }))
+    .sort((a, b) => b.messages - a.messages || a.name.localeCompare(b.name));
 
-  const activeAgents = Object.entries(perAgent).sort(([a], [b]) => a.localeCompare(b));
-  if (activeAgents.length > 0) {
-    const nameWidth = Math.max(10, ...activeAgents.map(([name]) => name.length));
-    console.log("");
-    console.log(`  ${c.bold}by agent${c.reset}`);
-    for (const [name, stats] of activeAgents) {
-      const rate = ((stats.swears / stats.messages) * 100).toFixed(1);
-      console.log(
-        `    ${c.cyan}${name.padEnd(nameWidth)}${c.reset} ${c.bold}${String(stats.swears).padStart(4)}${c.reset} ${c.dim}in ${stats.messages} messages (${rate}%)${c.reset}`,
-      );
-    }
-  }
-
-  if (totalSwears > 0) {
-    const sorted = Object.entries(groupTally).sort(([, a], [, b]) => b - a);
-    console.log("");
-    console.log(`  ${c.bold}top words${c.reset}`);
-    for (const [group, count] of sorted.slice(0, 10)) {
-      const variants = variantTally[group] ?? {};
-      const variantList = Object.entries(variants)
-        .sort(([, a], [, b]) => b - a)
-        .filter(([v]) => v !== group)
-        .slice(0, 15)
-        .map(([v, cnt]) => `${c.dim}${v}${c.reset} ${cnt}`)
-        .join(`${c.dim},${c.reset} `);
-      const suffix = variantList ? ` ${c.dim}(${c.reset}${variantList}${c.dim})${c.reset}` : "";
-      console.log(
-        `    ${c.yellow}${group.padEnd(12)}${c.reset} ${c.bold}${String(count).padStart(4)}${c.reset}${suffix}`,
-      );
-    }
-  }
-
-  console.log("");
-  if (totalSwears === 0) {
-    console.log(`  ${c.green}squeaky clean! not a single swear found.${c.reset}`);
-    console.log("");
-  }
+  return {
+    generatedAt: new Date().toISOString(),
+    elapsedMs,
+    totalMessages,
+    totalSwears,
+    overallRate: totalMessages > 0 ? (totalSwears / totalMessages) * 100 : 0,
+    agents,
+    words,
+    sources,
+    scope: {
+      agent: options.agent,
+      since: options.since?.toISOString(),
+    },
+  };
 }
 
+function adapterNameFor(agent: string): string {
+  return agent.split(":")[0] ?? agent;
+}
+
+function buildAgentStats(
+  perAgent: Record<string, { messages: number; swears: number }>,
+): AgentStats[] {
+  return Object.entries(perAgent)
+    .map(([name, stats]) => ({
+      name,
+      messages: stats.messages,
+      swears: stats.swears,
+      rate: stats.messages > 0 ? (stats.swears / stats.messages) * 100 : 0,
+    }))
+    .sort((a, b) => b.rate - a.rate || b.swears - a.swears || a.name.localeCompare(b.name));
+}
+
+function buildWordStats(
+  groupTally: Record<string, number>,
+  variantTally: Record<string, Record<string, number>>,
+): WordStats[] {
+  return Object.entries(groupTally)
+    .map(([group, count]) => ({
+      group,
+      count,
+      variants: Object.entries(variantTally[group] ?? {})
+        .map(([word, variantCount]) => ({ word, count: variantCount }))
+        .sort((a, b) => b.count - a.count || a.word.localeCompare(b.word)),
+    }))
+    .sort((a, b) => b.count - a.count || a.group.localeCompare(b.group));
+}

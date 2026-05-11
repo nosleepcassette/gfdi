@@ -13,8 +13,9 @@ export function hermesAdapter(): Adapter {
   return {
     name: "hermes",
     async *messages(options?: AdapterOptions): AsyncGenerator<Message> {
-      yield* walkHermesSessions(HERMES_SESSIONS_DIR, options);
-      yield* readHermesProfileHistories(options);
+      const seen = new Set<string>();
+      yield* walkHermesSessions(HERMES_SESSIONS_DIR, options, seen);
+      yield* readHermesProfileHistories(options, seen);
     },
   };
 }
@@ -22,6 +23,7 @@ export function hermesAdapter(): Adapter {
 async function* walkHermesSessions(
   dir: string,
   options?: AdapterOptions,
+  seen?: Set<string>,
 ): AsyncGenerator<Message> {
   let entries: string[];
   try {
@@ -41,11 +43,18 @@ async function* walkHermesSessions(
     }
 
     if (entryStat.isDirectory()) {
-      yield* walkHermesSessions(fullPath, options);
+      yield* walkHermesSessions(fullPath, options, seen);
     } else if (entry.endsWith(".jsonl")) {
       yield* parseHermesJsonl(fullPath, {
         session: entry.replace(".jsonl", ""),
         since: options?.since,
+        seen,
+      });
+    } else if (entry.endsWith(".json")) {
+      yield* parseHermesJson(fullPath, {
+        session: entry.replace(".json", ""),
+        since: options?.since,
+        seen,
       });
     }
   }
@@ -53,7 +62,7 @@ async function* walkHermesSessions(
 
 async function* parseHermesJsonl(
   filePath: string,
-  context: { session: string; since?: Date },
+  context: { session: string; since?: Date; seen?: Set<string> },
 ): AsyncGenerator<Message> {
   const rl = createInterface({
     input: createReadStream(filePath, { encoding: "utf-8" }),
@@ -83,11 +92,16 @@ async function* parseHermesJsonl(
         }
       }
 
+      if (isDuplicate(context.seen, "hermes", context.session, text)) {
+        continue;
+      }
+
       yield {
         text,
         timestamp: entry.timestamp,
         session: context.session,
         agent: "hermes",
+        source: "jsonl",
       };
     } catch {
       // Skip malformed lines.
@@ -95,8 +109,71 @@ async function* parseHermesJsonl(
   }
 }
 
+async function* parseHermesJson(
+  filePath: string,
+  context: { session: string; since?: Date; seen?: Set<string> },
+): AsyncGenerator<Message> {
+  let raw: string;
+  try {
+    raw = await readFile(filePath, "utf-8");
+  } catch {
+    return;
+  }
+
+  try {
+    const session = JSON.parse(raw) as HermesSessionJson;
+    if (!Array.isArray(session.messages)) {
+      return;
+    }
+
+    const sessionId =
+      typeof session.session_id === "string" ? session.session_id : context.session;
+    const sessionTimestamp =
+      typeof session.session_start === "string"
+        ? session.session_start
+        : typeof session.last_updated === "string"
+          ? session.last_updated
+          : undefined;
+
+    for (const message of session.messages) {
+      if (message.role !== "user") {
+        continue;
+      }
+
+      const text = extractText(message.content);
+      if (!text || shouldSkipInjectedContext(text)) {
+        continue;
+      }
+
+      const timestamp =
+        typeof message.timestamp === "string" ? message.timestamp : sessionTimestamp;
+      if (context.since && timestamp) {
+        const ts = new Date(timestamp);
+        if (ts < context.since) {
+          continue;
+        }
+      }
+
+      if (isDuplicate(context.seen, "hermes", sessionId, text)) {
+        continue;
+      }
+
+      yield {
+        text,
+        timestamp,
+        session: sessionId,
+        agent: "hermes",
+        source: "json",
+      };
+    }
+  } catch {
+    // Skip malformed files.
+  }
+}
+
 async function* readHermesProfileHistories(
   options?: AdapterOptions,
+  seen?: Set<string>,
 ): AsyncGenerator<Message> {
   let profiles: string[];
   try {
@@ -118,7 +195,7 @@ async function* readHermesProfileHistories(
       continue;
     }
 
-    yield* parseHermesHistory(historyPath, profile, options);
+    yield* parseHermesHistory(historyPath, profile, options, seen);
   }
 }
 
@@ -126,6 +203,7 @@ async function* parseHermesHistory(
   filePath: string,
   profile: string,
   options?: AdapterOptions,
+  seen?: Set<string>,
 ): AsyncGenerator<Message> {
   let raw: string;
   try {
@@ -158,11 +236,17 @@ async function* parseHermesHistory(
       }
     }
 
+    const agent = `hermes:${profile}`;
+    if (isDuplicate(seen, agent, timestamp ?? basename(filePath), text)) {
+      continue;
+    }
+
     yield {
       text,
       timestamp,
       session: basename(filePath),
-      agent: `hermes:${profile}`,
+      agent,
+      source: "profile",
     };
   }
 }
@@ -220,8 +304,38 @@ function shouldSkipInjectedContext(text: string): boolean {
   );
 }
 
+function isDuplicate(
+  seen: Set<string> | undefined,
+  agent: string,
+  session: string,
+  text: string,
+): boolean {
+  if (!seen) {
+    return false;
+  }
+  const key = `${agent}\0${session}\0${text}`;
+  if (seen.has(key)) {
+    return true;
+  }
+  seen.add(key);
+  return false;
+}
+
 interface HermesJsonlEntry {
   role?: string;
   content?: unknown;
   timestamp?: string;
+}
+
+interface HermesMessageJson {
+  role?: string;
+  content?: unknown;
+  timestamp?: string;
+}
+
+interface HermesSessionJson {
+  session_id?: string;
+  session_start?: string;
+  last_updated?: string;
+  messages?: HermesMessageJson[];
 }

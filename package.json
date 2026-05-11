@@ -1,6 +1,6 @@
 {
   "name": "fuckupinator",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "description": "Count how many times you swear at your coding agents, including Hermes agents",
   "type": "module",
   "bin": {

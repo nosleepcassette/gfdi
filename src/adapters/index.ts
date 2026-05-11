@@ -13,6 +13,7 @@ export interface Message {
   session?: string;
   project?: string;
   agent?: string;
+  source?: string;
 }
 
 export interface Adapter {

@@ -2,7 +2,7 @@ import { createReadStream } from "node:fs";
 import { readdir, stat } from "node:fs/promises";
 import { createInterface } from "node:readline";
 import { homedir } from "node:os";
-import { join } from "node:path";
+import { basename, dirname, join, relative } from "node:path";
 import type { Adapter, AdapterOptions, Message } from "./index";
 
 /**
@@ -16,60 +16,70 @@ import type { Adapter, AdapterOptions, Message } from "./index";
  */
 
 const CLAUDE_DIR = join(homedir(), ".claude", "projects");
+const CLAUDE_HISTORY = join(homedir(), ".claude", "history.jsonl");
 
 export function claudeAdapter(): Adapter {
   return {
     name: "claude",
     async *messages(options?: AdapterOptions): AsyncGenerator<Message> {
-      const projectsDir = CLAUDE_DIR;
+      const files = await collectClaudeJsonlFiles(CLAUDE_DIR);
+      const canonicalSessionIds = new Set(files.map((file) => basename(file, ".jsonl")));
 
-      let projectDirs: string[];
-      try {
-        projectDirs = await readdir(projectsDir);
-      } catch {
-        return; // Claude Code not installed or no sessions
+      for (const filePath of files) {
+        const rel = relative(CLAUDE_DIR, filePath);
+        const [project = "unknown"] = rel.split("/");
+
+        yield* parseClaudeJsonl(filePath, {
+          session: sessionNameFor(filePath),
+          project,
+          since: options?.since,
+        });
       }
 
-      for (const projectDir of projectDirs) {
-        const projectPath = join(projectsDir, projectDir);
-        const projectStat = await stat(projectPath);
-        if (!projectStat.isDirectory()) continue;
-
-        const entries = await readdir(projectPath);
-        const jsonlFiles = entries.filter((f) => f.endsWith(".jsonl"));
-
-        for (const file of jsonlFiles) {
-          const filePath = join(projectPath, file);
-          const session = file.replace(".jsonl", "");
-
-          yield* parseClaudeJsonl(filePath, {
-            session,
-            project: projectDir,
-            since: options?.since,
-          });
-        }
-
-        // Also check for subagent JSONL files in session subdirectories
-        const subdirs = entries.filter((f) => !f.includes("."));
-        for (const subdir of subdirs) {
-          const subagentsDir = join(projectPath, subdir, "subagents");
-          try {
-            const subFiles = await readdir(subagentsDir);
-            const subJsonl = subFiles.filter((f) => f.endsWith(".jsonl"));
-            for (const file of subJsonl) {
-              yield* parseClaudeJsonl(join(subagentsDir, file), {
-                session: `${subdir}/${file.replace(".jsonl", "")}`,
-                project: projectDir,
-                since: options?.since,
-              });
-            }
-          } catch {
-            // No subagents directory, skip
-          }
-        }
-      }
+      yield* parseClaudeHistory(CLAUDE_HISTORY, canonicalSessionIds, options);
     },
   };
+}
+
+async function collectClaudeJsonlFiles(dir: string): Promise<string[]> {
+  const files: string[] = [];
+
+  async function walk(current: string): Promise<void> {
+    let entries: string[];
+    try {
+      entries = await readdir(current);
+    } catch {
+      return;
+    }
+
+    for (const entry of entries) {
+      const fullPath = join(current, entry);
+      let entryStat;
+      try {
+        entryStat = await stat(fullPath);
+      } catch {
+        continue;
+      }
+
+      if (entryStat.isDirectory()) {
+        await walk(fullPath);
+      } else if (entry.endsWith(".jsonl")) {
+        files.push(fullPath);
+      }
+    }
+  }
+
+  await walk(dir);
+  return files.sort();
+}
+
+function sessionNameFor(filePath: string): string {
+  const fileSession = basename(filePath, ".jsonl");
+  const parent = basename(dirname(filePath));
+  if (parent === "subagents") {
+    return `${basename(dirname(dirname(filePath)))}/${fileSession}`;
+  }
+  return fileSession;
 }
 
 async function* parseClaudeJsonl(
@@ -82,17 +92,23 @@ async function* parseClaudeJsonl(
   });
 
   for await (const line of rl) {
-    if (!line.trim()) continue;
+    if (!line.trim()) {
+      continue;
+    }
 
     try {
       const entry = JSON.parse(line) as Record<string, unknown>;
       const text = extractUserText(entry);
-      if (!text) continue;
+      if (!text) {
+        continue;
+      }
 
       const timestamp = extractTimestamp(entry);
       if (context.since && timestamp) {
         const ts = new Date(timestamp);
-        if (ts < context.since) continue;
+        if (ts < context.since) {
+          continue;
+        }
       }
 
       yield {
@@ -100,6 +116,60 @@ async function* parseClaudeJsonl(
         timestamp: timestamp ?? undefined,
         session: context.session,
         project: context.project,
+        source: "projects",
+      };
+    } catch {
+      // Skip malformed lines
+    }
+  }
+}
+
+async function* parseClaudeHistory(
+  filePath: string,
+  canonicalSessionIds: Set<string>,
+  options?: AdapterOptions,
+): AsyncGenerator<Message> {
+  try {
+    await stat(filePath);
+  } catch {
+    return;
+  }
+
+  const rl = createInterface({
+    input: createReadStream(filePath, { encoding: "utf-8" }),
+    crlfDelay: Infinity,
+  });
+
+  for await (const line of rl) {
+    if (!line.trim()) {
+      continue;
+    }
+
+    try {
+      const entry = JSON.parse(line) as ClaudeHistoryEntry;
+      const sessionId = typeof entry.sessionId === "string" ? entry.sessionId : undefined;
+      if (sessionId && canonicalSessionIds.has(sessionId)) {
+        continue;
+      }
+
+      const text = typeof entry.display === "string" ? entry.display.trim() : "";
+      if (!text) {
+        continue;
+      }
+
+      if (options?.since && entry.timestamp) {
+        const ts = new Date(entry.timestamp);
+        if (ts < options.since) {
+          continue;
+        }
+      }
+
+      yield {
+        text,
+        timestamp: entry.timestamp,
+        session: sessionId,
+        project: entry.project,
+        source: "history",
       };
     } catch {
       // Skip malformed lines
@@ -111,14 +181,18 @@ function extractUserText(entry: Record<string, unknown>): string | null {
   // Format: { "type": "user", "message": { "role": "user", "content": "..." } }
   if (entry["type"] === "user") {
     const message = entry["message"] as Record<string, unknown> | undefined;
-    if (!message) return null;
+    if (!message) {
+      return null;
+    }
     return contentToString(message["content"]);
   }
 
   // Legacy format: { "type": "human", "message": { "content": [...] } }
   if (entry["type"] === "human") {
     const message = entry["message"] as Record<string, unknown> | undefined;
-    if (!message) return null;
+    if (!message) {
+      return null;
+    }
     return contentToString(message["content"]);
   }
 
@@ -131,21 +205,50 @@ function extractUserText(entry: Record<string, unknown>): string | null {
 }
 
 function contentToString(content: unknown): string | null {
-  if (typeof content === "string") return content;
+  if (typeof content === "string") {
+    return content;
+  }
   if (Array.isArray(content)) {
     const parts = content
-      .filter(
-        (p): p is { type: string; text: string } =>
-          typeof p === "object" && p !== null && p.type === "text",
-      )
-      .map((p) => p.text);
+      .map((part) => {
+        if (typeof part === "string") {
+          return part;
+        }
+        if (typeof part !== "object" || part === null) {
+          return null;
+        }
+
+        const candidate = part as { type?: string; text?: unknown; content?: unknown };
+        if (candidate.type === "tool_result") {
+          return null;
+        }
+        if (typeof candidate.text === "string") {
+          return candidate.text;
+        }
+        if (typeof candidate.content === "string") {
+          return candidate.content;
+        }
+        return null;
+      })
+      .filter((part): part is string => typeof part === "string" && part.length > 0);
     return parts.length > 0 ? parts.join(" ") : null;
   }
   return null;
 }
 
 function extractTimestamp(entry: Record<string, unknown>): string | null {
-  if (typeof entry["timestamp"] === "string") return entry["timestamp"];
-  if (typeof entry["createdAt"] === "string") return entry["createdAt"];
+  if (typeof entry["timestamp"] === "string") {
+    return entry["timestamp"];
+  }
+  if (typeof entry["createdAt"] === "string") {
+    return entry["createdAt"];
+  }
   return null;
+}
+
+interface ClaudeHistoryEntry {
+  display?: string;
+  project?: string;
+  sessionId?: string;
+  timestamp?: string;
 }

@@ -12,7 +12,7 @@ Usage:
   fuckup <command> [options]
 
 Commands:
-  scan          Scan sessions for profanity
+  scan          Scan sessions for profanity with the dashboard report
 
 Options:
   --help, -h    Show this help message
@@ -21,9 +21,11 @@ Options:
 Examples:
   fuckupinator scan
   fuckup scan
+  fuckup --tui
   fuckupinator scan --agent claude
   fuckupinator scan --agent hermes
-  fuckupinator scan --since 2025-01-01`);
+  fuckupinator scan --since 2025-01-01
+  fuckup --json --agent hermes:wizard`);
 }
 
 async function main(): Promise<void> {
@@ -36,7 +38,7 @@ async function main(): Promise<void> {
   }
 
   if (command === "--version") {
-    console.log("0.1.1");
+    console.log("0.2.0");
     process.exit(0);
   }
 

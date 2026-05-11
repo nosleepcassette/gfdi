@@ -5,9 +5,10 @@ const COMMANDS: Record<string, (args: string[]) => Promise<void>> = {
 };
 
 function usage(): void {
-  console.log(`fuckupinator — count how many times you swear at your coding agents
+  console.log(`gfdi - count how many times you swear at your coding agents
 
 Usage:
+  gfdi <command> [options]
   fuckupinator <command> [options]
   fuckup <command> [options]
 
@@ -19,13 +20,13 @@ Options:
   --version     Show version
 
 Examples:
-  fuckupinator scan
+  gfdi scan
   fuckup scan
-  fuckup --tui
-  fuckupinator scan --agent claude
-  fuckupinator scan --agent hermes
-  fuckupinator scan --since 2025-01-01
-  fuckup --json --agent hermes:wizard`);
+  gfdi --tui
+  gfdi scan --agent claude
+  gfdi scan --agent hermes
+  gfdi scan --since 2025-01-01
+  gfdi --json --agent hermes:wizard`);
 }
 
 async function main(): Promise<void> {
@@ -38,7 +39,7 @@ async function main(): Promise<void> {
   }
 
   if (command === "--version") {
-    console.log("0.2.0");
+    console.log("0.3.0");
     process.exit(0);
   }
 

@@ -1,11 +1,31 @@
 {
-  "name": "fuckupinator",
-  "version": "0.2.0",
-  "description": "Count how many times you swear at your coding agents, including Hermes agents",
+  "name": "gfdi",
+  "version": "0.3.0",
+  "description": "GFDI: count how many times you swear at your coding agents",
   "type": "module",
+  "keywords": [
+    "cli",
+    "npx",
+    "agent",
+    "coding-agents",
+    "claude",
+    "codex",
+    "hermes",
+    "opencode",
+    "tui"
+  ],
+  "homepage": "https://github.com/nosleepcassette/gfdi#readme",
+  "bugs": {
+    "url": "https://github.com/nosleepcassette/gfdi/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/nosleepcassette/gfdi.git"
+  },
   "bin": {
-    "fuckupinator": "./dist/cli.js",
-    "fuckup": "./dist/cli.js"
+    "gfdi": "dist/cli.js",
+    "fuckupinator": "dist/cli.js",
+    "fuckup": "dist/cli.js"
   },
   "exports": {
     ".": {
@@ -22,7 +42,12 @@
     "dev": "node build.js --watch",
     "typecheck": "tsc --noEmit",
     "lint": "oxlint src/",
-    "format": "oxfmt --check src/"
+    "format": "oxfmt --check src/",
+    "prepack": "npm run build",
+    "release:dry": "npm pack --dry-run"
+  },
+  "publishConfig": {
+    "access": "public"
   },
   "engines": {
     "node": ">=20"

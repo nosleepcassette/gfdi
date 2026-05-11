@@ -48,7 +48,7 @@ function parseArgs(args: string[]): ScanOptions {
       }
       options.top = val;
     } else if (arg === "--help" || arg === "-h") {
-      console.log(`fuckupinator scan - scan sessions for profanity
+      console.log(`gfdi scan - scan sessions for profanity
 
 Options:
   --agent, -a <name>   Scan one adapter or logical agent

@@ -40,7 +40,7 @@ function renderDashboard(result: ScanResult, options: RenderOptions): void {
     console.log("");
   }
 
-  console.log(center(`>===<  ${paint("fuckupinator", ANSI.amberSoft)}  local agent audit  >===<`, width));
+  console.log(center(`>===<  ${paint("gfdi", ANSI.amberSoft)}  local agent audit  >===<`, width));
   console.log(center(dim(scopeLine(result), true), width));
   console.log("");
   console.log(rule(width));
@@ -69,14 +69,14 @@ function renderDashboard(result: ScanResult, options: RenderOptions): void {
   }
 
   console.log("");
-  console.log(dim("  hints: fuckup --plain | fuckup --json | fuckup --agent hermes | fuckup --top 20"));
+  console.log(dim("  hints: gfdi --plain | gfdi --json | gfdi --agent hermes | gfdi --top 20"));
   console.log("");
 }
 
 function renderPlain(result: ScanResult, options: RenderOptions): void {
   const top = options.top ?? 10;
   console.log("");
-  console.log(`  fuckupinator report`);
+  console.log(`  gfdi report`);
   console.log(`  ${"-".repeat(30)}`);
   console.log("");
   console.log(`  messages scanned  ${result.totalMessages}`);

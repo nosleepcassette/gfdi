@@ -1,10 +1,18 @@
-# fuckupinator
+# gfdi
 
 Count profanity across local coding-agent session logs.
 
-This fork of `gricha/devrage` adds Hermes support. Hermes global sessions are reported
-as `hermes`, and each Hermes profile history is reported separately as
-`hermes:<profile>`.
+GFDI is a fork of `gricha/devrage` with a broader local-session scanner, a compact
+terminal dashboard, and Hermes support. Hermes global sessions are reported as
+`hermes`, and each Hermes profile history is reported separately as `hermes:<profile>`.
+
+Once published to npm:
+
+```sh
+npx gfdi
+npx gfdi --agent hermes
+npx gfdi --json
+```
 
 The default command renders a compact terminal dashboard in a real TTY. Use
 `--plain` for script-friendly text, `--json` for structured output, or `--tui`
@@ -15,8 +23,8 @@ to force the styled dashboard outside a TTY. The default logo is read from
 npm install
 npm run build
 npm link
-fuckupinator scan
-fuckup scan --agent hermes
-fuckup --top 20 --tui
-fuckup --json --agent hermes:wizard
+gfdi scan
+gfdi scan --agent hermes
+gfdi --top 20 --tui
+gfdi --json --agent hermes:wizard
 ```

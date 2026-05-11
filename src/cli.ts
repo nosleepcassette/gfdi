@@ -9,6 +9,7 @@ function usage(): void {
 
 Usage:
   fuckupinator <command> [options]
+  fuckup <command> [options]
 
 Commands:
   scan          Scan sessions for profanity
@@ -19,6 +20,7 @@ Options:
 
 Examples:
   fuckupinator scan
+  fuckup scan
   fuckupinator scan --agent claude
   fuckupinator scan --agent hermes
   fuckupinator scan --since 2025-01-01`);
@@ -34,7 +36,7 @@ async function main(): Promise<void> {
   }
 
   if (command === "--version") {
-    console.log("0.1.0");
+    console.log("0.1.1");
     process.exit(0);
   }
 

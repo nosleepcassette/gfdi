@@ -1,10 +1,11 @@
 {
   "name": "fuckupinator",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Count how many times you swear at your coding agents, including Hermes agents",
   "type": "module",
   "bin": {
-    "fuckupinator": "./dist/cli.js"
+    "fuckupinator": "./dist/cli.js",
+    "fuckup": "./dist/cli.js"
   },
   "exports": {
     ".": {

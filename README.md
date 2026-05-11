@@ -9,6 +9,7 @@ as `hermes`, and each Hermes profile history is reported separately as
 ```sh
 npm install
 npm run build
-node dist/cli.js scan
-node dist/cli.js scan --agent hermes
+npm link
+fuckupinator scan
+fuckup scan --agent hermes
 ```

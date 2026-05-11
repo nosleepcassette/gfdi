@@ -1,5 +1,5 @@
 import * as esbuild from "esbuild";
-import { execSync } from "node:child_process";
+import { execFileSync } from "node:child_process";
 
 const watch = process.argv.includes("--watch");
 
@@ -22,6 +22,8 @@ if (watch) {
   console.log("watching...");
 } else {
   await esbuild.build(cliOptions);
-  execSync("tsc -p tsconfig.lib.json", { stdio: "inherit" });
+  execFileSync(process.execPath, ["./node_modules/typescript/bin/tsc", "-p", "tsconfig.lib.json"], {
+    stdio: "inherit",
+  });
   console.log("build complete");
 }

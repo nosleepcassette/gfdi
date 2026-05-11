@@ -41,7 +41,7 @@
     "start": "node dist/cli.js",
     "build": "node build.js",
     "dev": "node build.js --watch",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "node ./node_modules/typescript/bin/tsc --noEmit",
     "lint": "oxlint src/",
     "lint:release": "oxlint src/cli.ts src/commands/scan.ts src/tui/*.ts src/adapters/claude.ts src/adapters/hermes.ts",
     "format": "oxfmt --check src/",

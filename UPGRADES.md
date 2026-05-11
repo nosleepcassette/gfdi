@@ -10,6 +10,8 @@
 - Add a `--version` smoke to README so users can verify the npx install path.
 - Use `~/Downloads/gfdi.txt` as the default local logo path.
 - Credit maps in package metadata and README.
+- Avoid relying on the generated `node_modules/.bin/tsc` shim during release
+  builds; npm can materialize it as a copied file on some local installs.
 
 ## 0.3.2 - count confidence
 

@@ -41,3 +41,7 @@ npm publish --access public
 npx gfdi --version
 npx gfdi --plain --top 3
 ```
+
+If a local npm shim fails with `Cannot find module '../lib/tsc.js'`, refresh
+dependencies with `npm install`; GFDI's own scripts call TypeScript directly
+through `node_modules/typescript/bin/tsc` to avoid relying on the shim layout.

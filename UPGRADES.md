@@ -2,11 +2,14 @@
 
 ## 0.3.1 - npm polish
 
+- Status: implemented.
 - Add a CI job that runs `npm run typecheck`, targeted `oxlint`, `npm run build`,
   and `npm pack --dry-run`.
 - Add a release checklist for `npm login`, `npm publish --access public`, and a
-  post-publish `npx gfdi -- --version` smoke test.
+  post-publish `npx gfdi --version` smoke test.
 - Add a `--version` smoke to README so users can verify the npx install path.
+- Use `~/Downloads/gfdi.txt` as the default local logo path.
+- Credit maps in package metadata and README.
 
 ## 0.3.2 - count confidence
 

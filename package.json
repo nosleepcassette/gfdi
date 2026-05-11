@@ -1,6 +1,6 @@
 {
   "name": "gfdi",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "GFDI: count how many times you swear at your coding agents",
   "type": "module",
   "keywords": [
@@ -22,6 +22,7 @@
     "type": "git",
     "url": "git+https://github.com/nosleepcassette/gfdi.git"
   },
+  "author": "maps",
   "bin": {
     "gfdi": "dist/cli.js",
     "fuckupinator": "dist/cli.js",
@@ -42,9 +43,11 @@
     "dev": "node build.js --watch",
     "typecheck": "tsc --noEmit",
     "lint": "oxlint src/",
+    "lint:release": "oxlint src/cli.ts src/commands/scan.ts src/tui/*.ts src/adapters/claude.ts src/adapters/hermes.ts",
     "format": "oxfmt --check src/",
     "prepack": "npm run build",
-    "release:dry": "npm pack --dry-run"
+    "release:dry": "npm pack --dry-run",
+    "release:check": "npm run typecheck && npm run lint:release && npm run build && npm pack --dry-run"
   },
   "publishConfig": {
     "access": "public"

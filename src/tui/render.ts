@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { ANSI, bold, dim, paint, stripAnsi } from "./theme";
 import type { AgentStats, RenderOptions, ScanResult, WordStats } from "./types";
 
-const DEFAULT_LOGO_PATH = join(homedir(), "Downloads", "fuckup.txt");
+const DEFAULT_LOGO_PATH = join(homedir(), "Downloads", "gfdi.txt");
 const FALLBACK_LOGO = [
   "FFFFFFFF  UUU  UUU  CCCCCC  KKK  KKK  UUU  UUU  PPPPPP",
   "FFF       UUU  UUU CCC      KKK KKK   UUU  UUU  PPP  PP",

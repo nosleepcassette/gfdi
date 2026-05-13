@@ -1,5 +1,7 @@
 # gfdi
 
+![gfdi title image](./gfdi.png)
+
 Count profanity across local coding-agent session logs.
 
 GFDI is a fork of `gricha/devrage` with a broader local-session scanner, a compact
